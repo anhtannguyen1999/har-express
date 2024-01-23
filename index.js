@@ -115,26 +115,33 @@ function filter(HAR, req, options=DEFAULT_OPTIONS) {
     return entries;
 }
 
-function getMiddleware(path, options) {
-    const HAR = parse(path);
+function getMiddleware(paths) {
+    const HARs = paths.map(path => parse(path));
     const stateFilter = new Map();
+
     return function harMiddleware(req, res, next) {
-        const found = filter(HAR, req, options);
+        const found = HARs.flatMap(HAR => filter(HAR, req));
+
         if (found.length > 0) {
             let candidate = found[0].response;
+
             if (found.length > 1) {
-                // rotation using the stateFilter
+                // Rotation using the stateFilter
                 const key = `${req.method}-${req.path}`;
                 let index = stateFilter.get(key) || 0;
+
                 if (index + 1 > found.length) {
                     index = 0;
                 }
-                stateFilter.set(key, index + 1); // update state
+
+                stateFilter.set(key, index + 1); // Update state
                 candidate = found[index].response;
             }
+
             if (candidate.status !== 200) {
                 res.status(candidate.status);
             }
+
             res.type(candidate.content.mimeType).send(Buffer.from(candidate.content.text, candidate.content.encoding));
         } else {
             next();
